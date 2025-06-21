@@ -5,9 +5,31 @@ import cv2
 import os
 import logging
 
+# Базовое логгирование для отладки
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def preprocess(image, target_size=(640, 640)):
+MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'best.onnx')
+
+# Список названий классов (должен соответствовать порядку в модели)
+CLASS_NAMES = ['Dent', 'Scratch', 'Crack', 'Glass shatter', 'Lamp broken', 'Tire flat']
+
+# Цвета, которые используются для отрисовки bounding box'ов для каждого класса повреждений
+COLORS = {
+    'Dent': (0, 255, 0),
+    'Scratch': (255, 0, 0),
+    'Crack': (0, 0, 255),
+    'Glass shatter': (255, 255, 0),
+    'Lamp broken': (0, 255, 255),
+    'Tire flat': (255, 0, 255)
+}
+
+TARGET_SIZE = (640, 640) # Размер изображения для инференса модели
+
+CONFIDENCE_THRESHOLD = 0.25 # Порог для детекции
+NMS_THRESHOLD = 0.45 # Порог для NMS
+
+# Предобрабатывает входное изображение для подачи в модель
+def preprocess(image, target_size=TARGET_SIZE):
     height, width = image.shape[:2]
 
     resized = cv2.resize(image, target_size, interpolation=cv2.INTER_LINEAR)
@@ -18,15 +40,19 @@ def preprocess(image, target_size=(640, 640)):
 
     img = img.transpose((2, 0, 1)) # HWC -> CHW
 
-    img = np.expand_dims(img, axis=0).astype(np.float32)
+    img = np.expand_dims(img, axis=0).astype(np.float32) # Добавление измерения дял батча
 
     return img, (width / target_size[0], height / target_size[1])
 
-def bboxes_info(outputs, class_names, threshold=0.25):
+
+# Получает выходы модели и извлекает информацию о bounding box'ах
+def bboxes_info(outputs, class_names, threshold=CONFIDENCE_THRESHOLD):
     proposals = outputs[0][0]
 
     bboxes = []
 
+    # Находим максимальную оценку среди всех классов для каждого предложенного bounding box'а
+    # и фильтруем их по порогу уверенности
     max_scores = np.max(proposals[4:], axis=0)
     bbox_ids = np.where(max_scores >= threshold)[0]
 
@@ -47,7 +73,9 @@ def bboxes_info(outputs, class_names, threshold=0.25):
 
     return bboxes
 
-def draw_and_filter_detections(image, bboxes, scales, colors, class_names):
+
+# Отрисовывает bounding box'ы на изображении после применения NMS и возвращает список отфильтрованных детекций.
+def draw_and_filter_detections(image, bboxes, scales, colors, score_threshold=CONFIDENCE_THRESHOLD, nms_threshold=NMS_THRESHOLD):
     img = image.copy()
 
     coords_list = []
@@ -57,6 +85,7 @@ def draw_and_filter_detections(image, bboxes, scales, colors, class_names):
     for bbox in bboxes:
         xc, yc, w, h = bbox['coords']
 
+        # Преобразовываем центральные координаты в угловые
         x1 = int((xc - w / 2) * scales[0])
         y1 = int((yc - h / 2) * scales[1])
         x2 = int((xc + w / 2) * scales[0])
@@ -66,7 +95,7 @@ def draw_and_filter_detections(image, bboxes, scales, colors, class_names):
         scores_list.append(bbox['score'])
         labels_list.append(bbox['class'])
 
-    ids = cv2.dnn.NMSBoxes(coords_list, scores_list, score_threshold=0.25, nms_threshold=0.45)
+    ids = cv2.dnn.NMSBoxes(coords_list, scores_list, score_threshold, nms_threshold) # Применяем NMS
     
     filtered_detections = []
 
@@ -79,14 +108,15 @@ def draw_and_filter_detections(image, bboxes, scales, colors, class_names):
         scores = [scores_list[i] for i in ids]
 
         for (x1, y1, x2, y2), label, score in zip(coords, labels, scores):
-            color = colors.get(label, 0)
+            color = colors.get(label, (0, 0, 0))
 
+            # Вычисляем размер текста для правильного расположения фона
             text = f'{label}: {score:.2f}'
             (text_w, text_h), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
 
-            cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
-            cv2.rectangle(image, (x1 - 1, y1 - text_h - 10), (x1 + text_w, y1), color, -1)
-            cv2.putText(image, text, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            cv2.rectangle(image, (x1, y1), (x2, y2), color, 2) # Рамка вокруг объекьта
+            cv2.rectangle(image, (x1 - 1, y1 - text_h - 10), (x1 + text_w, y1), color, -1) # Закрашенный прямоугольник для фона текста
+            cv2.putText(image, text, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2) # Текст
 
             filtered_detections.append({'class': label, 'score': score})
 
@@ -94,33 +124,32 @@ def draw_and_filter_detections(image, bboxes, scales, colors, class_names):
 
 
 if __name__ == "__main__":
-    
-    MODEL_PATH = os.path.join(os.path.dirname(__file__), 'models', 'best.onnx')
 
-    COLORS = {
-        'Dent': (0, 255, 0),
-        'Scratch': (255, 0, 0),
-        'Crack': (0, 0, 255),
-        'Glass shatter': (255, 255, 0),
-        'Lamp broken': (0, 255, 255),
-        'Tire flat': (255, 0, 255)
-    }
-
-    CLASS_NAMES = ['Dent', 'Scratch', 'Crack', 'Glass shatter', 'Lamp broken', 'Tire flat']
-    
     TOKEN = os.getenv('TOKEN')
-
+    if not TOKEN:
+        logging.error("Токен для телеграм бота не найден.")
+        exit(1)
+    
     bot = telebot.TeleBot(TOKEN)
 
-    session = ort.InferenceSession(MODEL_PATH)
-    input_name = session.get_inputs()[0].name
-    output_name = session.get_outputs()[0].name
+    try:
+        session = ort.InferenceSession(MODEL_PATH)
+        input_name = session.get_inputs()[0].name
+        output_name = session.get_outputs()[0].name
+        logging.info("Модель успешно загружена.")
+    except Exception as e:
+        logging.error(f"Ошибка при загрузке модели: {e}")
+        exit(1)
 
     @bot.message_handler(commands=['start'])
+    
+    # Обработчик команды /start
     def start(message):
-        bot.send_message(message.chat.id, 'Привет! Отправь фотографию машины, чтобы узнать есть ли повреждения.')
+        bot.send_message(message.chat.id, 'Привет! Отправь фотографию машины, чтобы узнать, есть ли повреждения.')
 
     @bot.message_handler(content_types=['photo'])
+    
+    # Обработчик входящих фотографий
     def handle_photo(message):
         bot.send_message(message.chat.id, 'Анализирую фото...')
 
@@ -139,13 +168,18 @@ if __name__ == "__main__":
                 f.write(downloaded_file)
             
             image = cv2.imread(photo_path)
+            
+            # Предобработка изображения
             input_tensor, scales = preprocess(image)
             
+            # Выполнение инференса модели
             outputs = session.run([output_name], {input_name: input_tensor})
             
+            # Получение информации о bounding box'ах
             bboxes = bboxes_info(outputs, CLASS_NAMES)
             
-            result, detections = draw_and_filter_detections(image, bboxes, scales, COLORS, CLASS_NAMES)
+            # Применение NMS и отрисовка детектированных объектов
+            result, detections = draw_and_filter_detections(image, bboxes, scales, COLORS)
             
             if not detections:
                 bot.send_message(message.chat.id, "Повреждения не обнаружены!")
@@ -174,6 +208,5 @@ if __name__ == "__main__":
                 os.remove(photo_path)
             if result_path and os.path.exists(result_path):
                 os.remove(result_path)
-
 
     bot.polling(none_stop=True, interval=0)

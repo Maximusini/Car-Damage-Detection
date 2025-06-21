@@ -9,6 +9,7 @@
 - [Возможности](#возможности)
 - [Технологии](#технологии)
 - [Датасет](#датасет)
+- [Обучение](#обучение) 
 - [Установка](#установка)
 - [Деплой через Docker](#деплой-через-docker)
 - [Использование](#использование)
@@ -37,34 +38,58 @@
 - 4,000 изображений автомобилей с повреждениями.
 - 9,000 аннотаций для шести категорий: Dent, Scratch, Crack, Glass shatter, Lamp broken, Tire flat.
 
+## Обучение
+Для детекции повреждений автомобилей использовались модели YOLO11m и YOLO11l из семейства YOLO11. Обучение проводилось на датасете [CarDD](https://cardd-ustc.github.io) с использованием Google Colab (см. [Jupyter Notebook](https://github.com/Maximusin/car-damage-detector/main/Car_Damage_Train.ipynb))
+
+### Основные этапы:
+1. **Подготовка данных**: Аннотации в формате COCO конвертированы в формат YOLO с помощью `ultralytics.data.converter`.
+2. **Обучение моделей**:
+   - **YOLO11m**: 50 эпох, размер изображений 640x640, batch size 8.
+   - **YOLO11l**: 40 эпох, размер изображений 640x640, batch size 16, с усиленной аугментацией.
+   - **YOLO11l (высокое разрешение)**: 40 эпох, размер изображений 1024x1024.
+3. **Экспорт**: Модели экспортированы в формате ONNX для оптимизированного инференса через 'ONNX Runtime'.
+4. **Результаты**:
+   - YOLO11m: mAP50: 0.726, mAP50:95 = 0.576.
+   - YOLO11l (imgsz=640): mAP50: 0.772, mAP50:95 = 0.609.
+   - YOLO11l (imgsz=1024): mAP50: 0.731, mAP50:95 = 0.539.
+
+
 ## Установка
 1. **Клонируйте репозиторий** (с Git LFS для модели):
-   ```bash
+   ```
    git clone https://github.com/Maximusin/car-damage-detector.git
    cd car-damage-detector
    git lfs install
    git lfs pull
-
+   ```
 2. **Установите зависимости**
+   ```
    pip install -r requirements.txt
-
+   ```
 3. **Запустите бот локально (замените token на токен вашего Telegram-бота)**
-*Для Linux/macOS:*
+
+   *Для Linux/macOS:*
+   ```
    export TOKEN='token'
    python main.py
-
-*Для Windows (PowerShell):*
+   ```
+   *Для Windows (PowerShell):*
+   ```
    $env:TOKEN='token'
    python main.py
-
+   ```
 ## Деплой через Docker
 1. **Соберите Docker-образ**
+   ```
    docker build -t car_damage_detector .
-
+   ```
 2. **Запустите контейнер (замените token на токен вашего Telegram-бота)**
+   ```
    docker run --name CarDD -d -e TOKEN='token' car_damage_detector
-
+   ```
 ## Использование
 1. Запустите бот, отправив команду /start.
 2. Загрузите фотографию автомобиля.
+   ![Отправка фотографии](screenshots/sent_photo.png)
 3. Получите аннотированное изображение с обнаруженными повреждениями и текстовое описание результатов.
+   ![alt text](screenshots/result_photo.png)
