@@ -122,9 +122,8 @@ def draw_and_filter_detections(image, bboxes, scales, colors, score_threshold=CO
 
     return image, filtered_detections
 
-
-if __name__ == "__main__":
-
+def main():
+    
     TOKEN = os.getenv('TOKEN')
     if not TOKEN:
         logging.error("Токен для телеграм бота не найден.")
@@ -141,15 +140,13 @@ if __name__ == "__main__":
         logging.error(f"Ошибка при загрузке модели: {e}")
         exit(1)
 
-    @bot.message_handler(commands=['start'])
-    
     # Обработчик команды /start
+    @bot.message_handler(commands=['start'])
     def start(message):
         bot.send_message(message.chat.id, 'Привет! Отправь фотографию машины, чтобы узнать, есть ли повреждения.')
-
-    @bot.message_handler(content_types=['photo'])
     
     # Обработчик входящих фотографий
+    @bot.message_handler(content_types=['photo'])
     def handle_photo(message):
         bot.send_message(message.chat.id, 'Анализирую фото...')
 
@@ -191,14 +188,12 @@ if __name__ == "__main__":
                 with open(result_path, 'rb') as f:
                     bot.send_photo(message.chat.id, f)
                 
-                
                 summary = "Обнаруженные повреждения:\n"
                 for detection in detections:
                     summary += f"- {detection['class']}: {detection['score']:.2f}\n"
                 
                 bot.send_message(message.chat.id, f"{summary} Всего: {len(detections)}")
                 
-            
         except Exception as e:
             bot.send_message(message.chat.id, 'Ошибка при обработке фото.')
             logging.error(f"Ошибка при обработке фото: {e}")
@@ -210,3 +205,6 @@ if __name__ == "__main__":
                 os.remove(result_path)
 
     bot.polling(none_stop=True, interval=0)
+
+if __name__ == "__main__":
+    main()
