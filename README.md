@@ -57,8 +57,8 @@
 ## Установка
 1. **Клонируйте репозиторий** (с Git LFS для модели):
    ```
-   git clone https://github.com/Maximusin/car-damage-detector.git
-   cd car-damage-detector
+   git clone https://github.com/Maximusini/Car-Damage-Detection.git
+   cd Car-Damage-Detection
    git lfs install
    git lfs pull
    ```
