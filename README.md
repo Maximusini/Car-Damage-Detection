@@ -75,8 +75,7 @@
    ```
    *Для Windows (PowerShell):*
    ```
-   $env:TOKEN='token'
-   python main.py
+   $env:TOKEN='token'; python main.py
    ```
 ## Деплой через Docker
 1. **Соберите Docker-образ**
