@@ -71,12 +71,12 @@
    *Для Linux/macOS:*
    ```
    export TOKEN='token'
-   python main.py
+   python damage_detection_bot.py
    ```
    *Для Windows (PowerShell):*
    ```
    $env:TOKEN='token'
-   python main.py
+   python damage_detection_bot.py
    ```
 ## Деплой через Docker
 1. **Соберите Docker-образ**
